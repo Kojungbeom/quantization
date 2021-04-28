@@ -13,6 +13,8 @@ import torch.nn.functional as F
 import numpy as np
 import torch.nn.utils.prune as prune
 
+DATA_LEN = 60000
+
 def minmax_uniform_quantize(k):
   class mmuq(torch.autograd.Function):
 
@@ -63,6 +65,18 @@ class weight_squantize(nn.Module):
         w_sq = self.uniform_q(weight, threshold)
         return w_sq
 
+class weight_nosquantize(nn.Module):
+    def __init__(self, w_bit, sigma):
+        super(weight_nosquantize, self).__init__()
+        assert w_bit <= 8 or w_bit == 32
+        self.w_bit = w_bit
+        self.sigma = sigma
+        self.uniform_q = minmax_uniform_quantize(k=w_bit)
+
+    def forward(self, x):
+        w_sq = self.uniform_q(weight, threshold)
+        return w_sq
+
 
 
 def conv2d_SQ(w_bit, sigma, delay):
@@ -70,6 +84,57 @@ def conv2d_SQ(w_bit, sigma, delay):
         def __init__(self, in_channels, out_channels, kernel_size, stride=1,
                      padding=0, dilation=1, groups=1, bias=False):
             super(Conv2d_SQ, self).__init__(in_channels, out_channels, kernel_size, stride,
+                  padding, dilation, groups, bias)
+            self.sigma = sigma
+            self.scale = pow(2, (w_bit-1)) - 1
+            self.w_bit = w_bit
+            self.quantize_fn = weight_squantize(w_bit=w_bit, sigma=sigma)
+            self.delay =  delay
+            self.iter = 0
+
+        def forward(self, input, order=None):
+            input = input
+            # Delay algorithm
+            if self.iter < (DATA_LEN / batch_size * delay) :
+                self.iter += 1
+                return F.conv2d(input, self.weight, self.bias, self.stride, self.padding, self.dilation, self.groups)
+            else:
+                weight_sq = self.quantize_fn(self.weight)
+                self.iter += 1
+                return F.conv2d(input, weight_sq, self.bias, self.stride, self.padding, self.dilation, self.groups)
+            
+    return Conv2d_SQ
+
+def conv2d_Nosq(w_bit, delay):
+    class Conv2d_Nosq(nn.Conv2d):
+        def __init__(self, in_channels, out_channels, kernel_size, stride=1,
+                     padding=0, dilation=1, groups=1, bias=False):
+            super(Conv2d_Nosq, self).__init__(in_channels, out_channels, kernel_size, stride,
+                  padding, dilation, groups, bias)
+            self.scale = pow(2, (w_bit-1)) - 1
+            self.w_bit = w_bit
+            self.quantize_fn = weight_squantize(w_bit=w_bit, sigma=sigma)
+            self.delay =  delay
+            self.iter = 0
+
+        def forward(self, input, order=None):
+            input = input
+            # Delay algorithm
+            if self.iter < 236 * delay :
+                self.iter += 1
+                return F.conv2d(input, self.weight, self.bias, self.stride, self.padding, self.dilation, self.groups)
+            else:
+                weight_sq = self.quantize_fn(self.weight)
+                self.iter += 1
+                return F.conv2d(input, weight_sq, self.bias, self.stride, self.padding, self.dilation, self.groups)
+            
+    return Conv2d_SQ
+
+def conv2d_Snoq(sigma, delay):
+    class Conv2d_Snoq(nn.Conv2d):
+        def __init__(self, in_channels, out_channels, kernel_size, stride=1,
+                     padding=0, dilation=1, groups=1, bias=False):
+            super(Conv2d_Snoq, self).__init__(in_channels, out_channels, kernel_size, stride,
                   padding, dilation, groups, bias)
             self.sigma = sigma
             self.scale = pow(2, (w_bit-1)) - 1
@@ -90,19 +155,4 @@ def conv2d_SQ(w_bit, sigma, delay):
                 return F.conv2d(input, weight_sq, self.bias, self.stride, self.padding, self.dilation, self.groups)
             
     return Conv2d_SQ
-     
-'''
-def linear_SQ(w_bit):
-    class Linear_SQ(nn.Linear):
-        def __init__(self, in_features, out_features, bias=True):
-            super(Linear_Q, self).__init__(in_features, out_features, bias)
-            self.w_bit = w_bit
-            self.quantize_fn = weight_squantize(w_bit=w_bit, sigma=sigma)
 
-        def forward(self, input):
-            weight_q = self.quantize_fn(self.weight)
-            # print(np.unique(weight_q.detach().numpy()))
-            return F.linear(input, weight_q, self.bias)
-
-    return Linear_SQ
-'''

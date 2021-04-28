@@ -29,12 +29,12 @@ class PactClip(torch.autograd.Function):
 
     @staticmethod
     def backward(ctx, grad_output):
-
         input, upper_bound, = ctx.saved_tensors
         grad_input = grad_output.clone()
         grad_upper_bound = grad_output.clone()
         grad_input[input<0] = 0
         grad_input[input>upper_bound] = 0
+
         # Gradient for parameterized clipping level α
         grad_upper_bound[input<upper_bound] = 0
 
