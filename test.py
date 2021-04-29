@@ -23,13 +23,13 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     parser.add_argument('-net', type=str, required=True, help='net type')
-    parser.add_argument('-weights', type=str, required=True, help='the weights file you want to test')
+    parser.add_argument('-weight', type=str, required=True, help='the weight file you want to test')
     parser.add_argument('-gpu', action='store_true', default=False, help='use gpu or not')
     parser.add_argument('-b', type=int, default=16, help='batch size for dataloader') 
     parser.add_argument('-wbit', type=int, default=8, help='weight quantization bit')
     parser.add_argument('-abit', type=int, default=8, help='activation quantization bit')
     parser.add_argument('-sigma', type=float, default=0, help='sigma')
-    parser.add_argument('-delay', type=int, default=75, help='delay')
+    parser.add_argument('-delay', type=int, default=100, help='delay')
     args = parser.parse_args()
 
     net = get_network(args)
@@ -42,7 +42,7 @@ if __name__ == '__main__':
         batch_size=args.b,
     )
 
-    net.load_state_dict(torch.load(args.weights))
+    net.load_state_dict(torch.load(args.weight))
     #print(net)
     net.eval()
 
