@@ -130,28 +130,6 @@ def conv2d_Nosq(w_bit, delay):
             
     return Conv2d_SQ
 
-def conv2d_Snoq(sigma, delay):
-    class Conv2d_Snoq(nn.Conv2d):
-        def __init__(self, in_channels, out_channels, kernel_size, stride=1,
-                     padding=0, dilation=1, groups=1, bias=False):
-            super(Conv2d_Snoq, self).__init__(in_channels, out_channels, kernel_size, stride,
-                  padding, dilation, groups, bias)
-            self.sigma = sigma
-            self.scale = pow(2, (w_bit-1)) - 1
-            self.w_bit = w_bit
-            self.quantize_fn = weight_squantize(w_bit=w_bit, sigma=sigma)
-            self.delay =  delay
-            self.iter = 0
-
-        def forward(self, input, order=None):
-            input = input
-            # Delay algorithm
-            if self.iter < 236 * delay :
-                self.iter += 1
-                return F.conv2d(input, self.weight, self.bias, self.stride, self.padding, self.dilation, self.groups)
-            else:
-                weight_sq = self.quantize_fn(self.weight)
-                self.iter += 1
                 return F.conv2d(input, weight_sq, self.bias, self.stride, self.padding, self.dilation, self.groups)
             
     return Conv2d_SQ

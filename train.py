@@ -27,10 +27,9 @@ from conf import settings
 from utils import get_network, get_training_dataloader, get_test_dataloader, WarmUpLR, \
     most_recent_folder, most_recent_weights, last_epoch, best_acc_weights
 
-
+model_dict = {'resnet':'r', 'qresnet':'d+p', 'sqresnet':'sq', 'Nos_qresnet':'nosq'}
 
 def train(epoch):
-
     start = time.time()
     net.train()
     for batch_index, (images, labels) in enumerate(cifar100_training_loader):
@@ -45,22 +44,13 @@ def train(epoch):
         optimizer.step()
 
         n_iter = (epoch - 1) * len(cifar100_training_loader) + batch_index + 1
-
-        last_layer = list(net.children())[-1]
-        for name, para in last_layer.named_parameters():
-            if 'weight' in name:
-                writer.add_scalar('LastLayerGradients/grad_norm2_weights', para.grad.norm(), n_iter)
-            if 'bias' in name:
-                writer.add_scalar('LastLayerGradients/grad_norm2_bias', para.grad.norm(), n_iter)
-
-        if len(labels) == 80:
-            print('Training Epoch: {epoch} [{trained_samples}/{total_samples}]\tLoss: {:0.4f}\tLR: {:0.6f}'.format(
-                loss.item(),
-                optimizer.param_groups[0]['lr'],
-                epoch=epoch,
-                trained_samples=batch_index * args.b + len(images),
-                total_samples=len(cifar100_training_loader.dataset)
-            ))
+        print('Training Epoch: {epoch} [{trained_samples}/{total_samples}]\tLoss: {:0.4f}\tLR: {:0.6f}'.format(
+            loss.item(),
+            optimizer.param_groups[0]['lr'],
+            epoch=epoch,
+            trained_samples=batch_index * args.b + len(images),
+            total_samples=len(cifar100_training_loader.dataset)
+        ))
         #update training loss for each iteration
         writer.add_scalar('Train/loss', loss.item(), n_iter)
 
@@ -101,7 +91,6 @@ def eval_training(epoch=0, tb=True):
         correct += preds.eq(labels).sum()
     
     finish = time.time()
-
     print('Evaluating Network.....')
     print('Test set: Epoch: {}, Average loss: {:.4f}, Accuracy: {:.4f}, Time consumed:{:.2f}s'.format(
         epoch,
@@ -115,26 +104,25 @@ def eval_training(epoch=0, tb=True):
     sparsed = 0
     sigma = args.sigma
     i = 0
-
-    for n, m in net.named_modules():
-        try:
-            num_element += float(m.weight.nelement())
-        except: 
-            continue
-        if isinstance(m, torch.nn.Conv2d):
-            # Except first convolution layer
-            if i==0:
-                i += 1
+    if model_dict[args.net[:-2]] =='sq' or model_dict[args.net[:-2]]=='snoq':
+        for n, m in net.named_modules():
+            try:
+                num_element += float(m.weight.nelement())
+            except: 
                 continue
-            # Create mask
-            threshold = torch.mean(torch.abs(m.weight)) + torch.std(torch.abs(m.weight)) * sigma
-            mask = torch.full((m.weight.shape[0], m.weight.shape[1],
-                               m.weight.shape[2], m.weight.shape[3]), threshold.detach()).cuda()
-            mask = torch.where(mask > torch.abs(m.weight), 0 , 1)
-            
-            sparsed += float(torch.sum(mask==0))
-    print("Sparisity:", sparsed / num_element)
-    print()
+            if isinstance(m, torch.nn.Conv2d):
+                # Except first convolution layer
+                if i==0:
+                    i += 1
+                    continue
+                # Create mask
+                threshold = torch.mean(torch.abs(m.weight)) + torch.std(torch.abs(m.weight)) * sigma
+                mask = torch.full((m.weight.shape[0], m.weight.shape[1],
+                                   m.weight.shape[2], m.weight.shape[3]), threshold.detach()).cuda()
+                mask = torch.where(mask > torch.abs(m.weight), 0 , 1)
+                sparsed += float(torch.sum(mask==0))
+        print("Sparisity:", sparsed / num_element)
+        print()
 
 
     #add informations to tensorboard
@@ -156,7 +144,7 @@ if __name__ == '__main__':
     parser.add_argument('-wbit', type=int, default=8, help='weight quantization bit')
     parser.add_argument('-abit', type=int, default=8, help='activation quantization bit')
     parser.add_argument('-sigma', type=float, default=0.0, help='sigma')
-    parser.add_argument('-delay', type=int, default=75, help='delay')
+    parser.add_argument('-delay', type=int, default=70, help='delay')
     args = parser.parse_args()
     net = get_network(args)  
     summary(net, (3, 32, 32))
@@ -247,11 +235,6 @@ if __name__ == '__main__':
         acc = eval_training(epoch)
 
         #start to save best performance model after learning rate decay to 0.01
-
-        if epoch >= 60 and epoch <=80:
-            weights_path = "checkpoint/qresnet18/" + str(epoch) + ".pth"
-            print('saving weights file to {}'.format(weights_path))
-            torch.save(net.state_dict(), weights_path)
 
         if epoch > settings.MILESTONES[1] and best_acc < acc:
             weights_path = checkpoint_path.format(net=args.net, epoch=epoch, type='best')

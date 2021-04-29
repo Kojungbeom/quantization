@@ -8,10 +8,9 @@ import os
 import sys
 import re
 import datetime
-
 import numpy
-
 import torch
+
 from torch.optim.lr_scheduler import _LRScheduler
 import torchvision
 import torchvision.transforms as transforms
@@ -32,45 +31,57 @@ def get_network(args):
         net = resnet50()
 
     elif args.net == 'qresnet18':
+        qt = 'd+p'
         from quant_models.qresnet import qresnet18
         net = qresnet18(args.wbit, args.abit) 
     elif args.net == 'qresnet34':
+        qt = 'd+p'
         from quant_models.qresnet import qresnet34
         net = qresnet34(args.wbit, args.abit) 
     elif args.net == 'qresnet50':
+        qt = 'd+p'
         from quant_models.qresnet import qresnet50
         net = qresnet50(args.wbit, args.abit) 
 
     elif args.net == 'sqresnet18':
-        from quant_models.qresnet import qresnet18
-        net = qresnet18(args.wbit, args.abit, args.sigma, args.delay) 
+        qt = 'sq'
+        from quant_models.qresnet import sqresnet18
+        net = sqresnet18(args.wbit, args.abit, args.sigma, args.delay, args.b) 
     elif args.net == 'sqresnet34':
-        from quant_models.qresnet import qresnet34
-        net = qresnet34(args.wbit, args.abit, args.sigma, args.delay) 
+        qt = 'sq'
+        from quant_models.qresnet import sqresnet34
+        net = sqresnet34(args.wbit, args.abit, args.sigma, args.delay, args.b) 
     elif args.net == 'sqresnet50':
-        from quant_models.qresnet import qresnet50
-        net = qresnet50(args.wbit, args.abit, args.sigma, args.delay) 
+        qt = 'sq'
+        from quant_models.qresnet import sqresnet50
+        net = sqresnet50(args.wbit, args.abit, args.sigma, args.delay, args.b) 
 
     elif args.net == 'Nos_qresnet18':
-        from quant_models.qresnet import qresnet18
-        net = qresnet18(args.wbit, args.abit, args.delay) 
+        qt = 'nosq'
+        from quant_models.qresnet import nos_qresnet18
+        net = nos_qresnet18(args.wbit, args.abit, args.delay, args.b) 
     elif args.net == 'Nos_qresnet34':
-        from quant_models.qresnet import qresnet34
-        net = qresnet34(args.wbit, args.abit, args.delay) 
+        qt = 'nosq'
+        from quant_models.qresnet import nos_qresnet34
+        net = nos_qresnet34(args.wbit, args.abit, args.delay, args.b) 
     elif args.net == 'Nos_qresnet50':
-        from quant_models.qresnet import qresnet50
-        net = qresnet50(args.wbit, args.abit, args.delay) 
+        qt = 'nosq'
+        from quant_models.qresnet import nos_qresnet50
+        net = nos_qresnet50(args.wbit, args.abit, args.delay, args.b) 
 
 
     elif args.net == 's_Noqresnet18':
+        qt = 'snoq'
         from quant_models.qresnet import qresnet18
-        net = qresnet18(args.sigma, args.delay) 
+        net = qresnet18(args.sigma, args.delay, args.b) 
     elif args.net == 's_Noqresnet34':
+        qt = 'snoq'
         from quant_models.qresnet import qresnet34
-        net = qresnet34(args.sigma, args.delay) 
+        net = qresnet34(args.sigma, args.delay, args.b) 
     elif args.net == 's_Noqresnet50':
+        qt = 'snoq'
         from quant_models.qresnet import qresnet50
-        net = qresnet50(args.sigma, args.delay) 
+        net = qresnet50(args.sigma, args.delay, args.b) 
 
 
     else:
