@@ -1,6 +1,6 @@
 # Quantization Aware Training Modules
 
-[1]을 참고하여 Cifar-100 데이터셋을 위한 ResNet18,34,50에 QAT 모듈을 적용함.
+Apply Quantization to ResNet for Cifar-100[1]
 
 ```
 git clone https://github.com/Kojungbeom/quantization.git
