@@ -66,20 +66,20 @@ class weight_squantize(nn.Module):
         return w_sq
 
 class weight_nosquantize(nn.Module):
-    def __init__(self, w_bit, sigma):
+    def __init__(self, w_bit):
         super(weight_nosquantize, self).__init__()
         assert w_bit <= 8 or w_bit == 32
         self.w_bit = w_bit
-        self.sigma = sigma
         self.uniform_q = minmax_uniform_quantize(k=w_bit)
 
     def forward(self, x):
-        w_sq = self.uniform_q(weight, threshold)
+        threshold = torch.tensor(0)
+        w_sq = self.uniform_q(x, threshold)
         return w_sq
 
 
 
-def conv2d_SQ(w_bit, sigma, delay):
+def conv2d_SQ(w_bit, sigma, delay, batch_size):
     class Conv2d_SQ(nn.Conv2d):
         def __init__(self, in_channels, out_channels, kernel_size, stride=1,
                      padding=0, dilation=1, groups=1, bias=False):
@@ -105,7 +105,8 @@ def conv2d_SQ(w_bit, sigma, delay):
             
     return Conv2d_SQ
 
-def conv2d_Nosq(w_bit, delay):
+
+def conv2d_Nosq(w_bit, delay, batch_size):
     class Conv2d_Nosq(nn.Conv2d):
         def __init__(self, in_channels, out_channels, kernel_size, stride=1,
                      padding=0, dilation=1, groups=1, bias=False):
@@ -113,14 +114,14 @@ def conv2d_Nosq(w_bit, delay):
                   padding, dilation, groups, bias)
             self.scale = pow(2, (w_bit-1)) - 1
             self.w_bit = w_bit
-            self.quantize_fn = weight_squantize(w_bit=w_bit, sigma=sigma)
+            self.quantize_fn = weight_nosquantize(w_bit=w_bit)
             self.delay =  delay
             self.iter = 0
 
         def forward(self, input, order=None):
             input = input
             # Delay algorithm
-            if self.iter < 236 * delay :
+            if self.iter < (DATA_LEN / batch_size * delay) :
                 self.iter += 1
                 return F.conv2d(input, self.weight, self.bias, self.stride, self.padding, self.dilation, self.groups)
             else:
@@ -128,9 +129,5 @@ def conv2d_Nosq(w_bit, delay):
                 self.iter += 1
                 return F.conv2d(input, weight_sq, self.bias, self.stride, self.padding, self.dilation, self.groups)
             
-    return Conv2d_SQ
-
-                return F.conv2d(input, weight_sq, self.bias, self.stride, self.padding, self.dilation, self.groups)
-            
-    return Conv2d_SQ
+    return Conv2d_Nosq
 

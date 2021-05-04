@@ -5,19 +5,21 @@
 print top1 and top5 err on test dataset
 of a model
 
-author baiyu
+author: baiyu
+    Edited by Kojungbeom
 """
 
 import argparse
-
 from matplotlib import pyplot as plt
-
 import torch
 import torchvision.transforms as transforms
 from torch.utils.data import DataLoader
 import torch.nn.utils.prune as prune
 from conf import settings
 from utils import get_network, get_test_dataloader
+
+
+model_dict = {'resnet':'r', 'qresnet':'d+p', 'sqresnet':'sq', 'Nos_qresnet':'nosq'}
 
 if __name__ == '__main__':
 
@@ -29,7 +31,7 @@ if __name__ == '__main__':
     parser.add_argument('-wbit', type=int, default=8, help='weight quantization bit')
     parser.add_argument('-abit', type=int, default=8, help='activation quantization bit')
     parser.add_argument('-sigma', type=float, default=0, help='sigma')
-    parser.add_argument('-delay', type=int, default=100, help='delay')
+    parser.add_argument('-delay', type=int, default=0, help='delay')
     args = parser.parse_args()
 
     net = get_network(args)
@@ -49,11 +51,6 @@ if __name__ == '__main__':
     correct_1 = 0.0
     correct_5 = 0.0
     total = 0
-
-    nele = 0
-    sp = 0
-    sigma = args.sigma
-    print(sigma)
 
     with torch.no_grad():
         for n_iter, (image, label) in enumerate(cifar100_test_loader):
@@ -78,24 +75,24 @@ if __name__ == '__main__':
             #compute top1
             correct_1 += correct[:, :1].sum()
 
-    nele = 0
-    sp = 0
+    n_element = 0
+    sparse = 0
     sigma = args.sigma
-    print(sigma)
-    for n, m in net.named_modules():
-        try:
-            nele += float(m.weight.nelement())
-            #print(float(m.weight.nelement()))
-        except: 
-            continue
-        if isinstance(m, torch.nn.Conv2d):
-            threshold = torch.mean(torch.abs(m.weight)) + torch.std(torch.abs(m.weight)) * sigma
-            mask = torch.full((m.weight.shape[0], m.weight.shape[1],
-                               m.weight.shape[2], m.weight.shape[3]), float(threshold)).cuda()
-            mask = torch.where(mask < torch.abs(m.weight), 1 , 0)
-            sp += float(torch.sum(mask==0))
-    print(sp, nele)
-    print(sp/nele)
+    if model_dict[args.net[:-2]] =='sq' or model_dict[args.net[:-2]]=='snoq':
+        for n, m in net.named_modules():
+            try:
+                n_element += float(m.weight.nelement())
+                #print(float(m.weight.nelement()))
+            except: 
+                continue
+            if isinstance(m, torch.nn.Conv2d):
+                threshold = torch.mean(torch.abs(m.weight)) + torch.std(torch.abs(m.weight)) * sigma
+                mask = torch.full((m.weight.shape[0], m.weight.shape[1],
+                                   m.weight.shape[2], m.weight.shape[3]), float(threshold)).cuda()
+                mask = torch.where(mask < torch.abs(m.weight), 1 , 0)
+                sparse += float(torch.sum(mask==0))
+        print('Sparsed weight: ', int(sparse), "Number of Weights: ", int(n_element))
+        print('Sparsity: {0:0.2f}%'.format(sparse/n_element))
 
     print()
     #print("Accuracy: {:.4f}".format(acc.float() / len(cifar100_test_loader.dataset)))
