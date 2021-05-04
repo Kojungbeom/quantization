@@ -48,6 +48,7 @@ class weight_quantize_fn(nn.Module):
             E = torch.mean(torch.abs(x)).detach()
             weight_q = self.uniform_q(x / E) * E
         else:
+            #map the weights between [-0.5, 0.5]
             weight = torch.tanh(x)
             max_w = torch.max(torch.abs(weight)).detach()
             weight = weight / 2 / max_w + 0.5

@@ -16,33 +16,29 @@ import torch.nn.utils.prune as prune
 DATA_LEN = 60000
 
 def minmax_uniform_quantize(k):
-  class mmuq(torch.autograd.Function):
+    class mmuq(torch.autograd.Function):
+        @staticmethod
+        def forward(ctx, input, threshold):
+            ctx.save_for_backward(input, threshold)
+            # Minmax uniform quantization
+            n = float(2 ** (k-1) - 1)
+            w_abs = torch.abs(input).detach()
+            w_max = torch.max(w_abs).detach()
+            w_min = threshold.detach()
+            w_s = (w_abs - w_min) / (w_max - w_min)
+            out = torch.round(w_s * n) / n
+            out = torch.sign(input) * (out*(w_max - w_min) + w_min)
+            return out
 
-    @staticmethod
-    def forward(ctx, input, threshold):
-      ctx.save_for_backward(input, threshold)
-      
-      # Minmax uniform quantization
-      n = float(2 ** (k-1) - 1)
-      w_abs = torch.abs(input).detach()
-      w_max = torch.max(w_abs).detach()
-      w_min = threshold.detach()
-      w_s = (w_abs - w_min) / (w_max - w_min)
-      out = torch.round(w_s * n) / n
-      out = torch.sign(input) * (out*(w_max - w_min) + w_min)
-      return out
+        @staticmethod
+        def backward(ctx, grad_output):
+            input, threshold, = ctx.saved_tensors
+            grad_input = grad_output.clone()
+            # mask out gradient with same mask
+            grad_input[torch.abs(input) < threshold] = 0
+            return grad_input, None
 
-    @staticmethod
-    def backward(ctx, grad_output):
-      input, threshold, = ctx.saved_tensors
-      grad_input = grad_output.clone()
-      
-      # mask out gradient with same mask
-      grad_input[torch.abs(input) < threshold] = 0
-      return grad_input, None
-
-  return mmuq().apply
-
+    return mmuq().apply
 
 class weight_squantize(nn.Module):
     def __init__(self, w_bit, sigma):
